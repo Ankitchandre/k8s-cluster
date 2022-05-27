@@ -1,0 +1,16 @@
+---
+- name: Reset Kubernetes component
+  command: "kubeadm reset --force"
+  register: reset_cluster
+
+- name: Get Join command
+  command:
+    cmd: kubeadm token create --ttl 1m --print-join-command
+  register: join_command
+  delegate_to: "{{ master_node }}"
+
+- name: Join to Kubernetes cluster
+  when: reset_cluster is succeeded
+  command: "{{ join_command.stdout }}"
+  notify:
+    - Recreate kube-dns

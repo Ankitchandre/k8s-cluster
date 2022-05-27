@@ -1,0 +1,29 @@
+---
+- name: Make sure loadbalancer_address is provided for multi-master
+  fail:
+    msg: >-
+      Master count {{ master_count }} is greater than 1 and loadbalancer_address is not provided.
+      Please create the loadbalancer and provide the address of it with variable loadbalancer_address.
+      Refer loadbalancer config here:
+      https://kubernetes.io/docs/setup/production-environment/tools/kubeadm/high-availability/#create-load-balancer-for-kube-apiserver
+  vars:
+    master_count: "{{ groups['master'] | length }}"
+  when: master_count|int > 1 and loadbalancer_address is not defined
+
+- name: Make sure loadbalancer_address is reachable
+  command: "nc -vz {{ loadbalancer_address.split(':')[0] }} {{ loadbalancer_address.split(':')[1] }}"
+  when: loadbalancer_address is defined
+
+- name: Install pip for installing kubernetes module for ansible
+  apt:
+    pkg:
+      - python3-pip
+      - python-apt
+    update_cache: true
+
+- name: Install openshift pip package for ansible to query kubernetes objects
+  command: "/usr/bin/{{ item.cmd }} install openshift==0.11.2"
+  args:
+    creates: "/usr/local/lib/{{ item.version }}/dist-packages/kubernetes"
+  with_items:
+    - {cmd: 'pip3', version: 'python3.6'}

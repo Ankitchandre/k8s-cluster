@@ -1,0 +1,41 @@
+---
+- name: Reset Kubernetes component
+  command: "kubeadm reset --force"
+  register: reset_cluster
+
+- name: Get Join command from main master
+  command: kubeadm token create --ttl 1m --print-join-command
+  register: join_command
+  delegate_to: "{{ master_node }}"
+  run_once: true
+
+- name: Create certificate key
+  command: kubeadm alpha certs certificate-key
+  register: certificate_key
+  delegate_to: "{{ master_node }}"
+  run_once: true
+
+- name: Upload certs with the certificate key
+  command: "kubeadm init phase upload-certs --upload-certs --certificate-key {{ certificate_key.stdout }}"
+  delegate_to: "{{ master_node }}"
+  run_once: true
+
+- name: Join to main master node
+  command: "{{ join_command.stdout }} --control-plane --certificate-key {{ certificate_key.stdout }}"
+  register: join_cluster
+
+- name: Create Kubernetes config directory
+  file:
+    path: ".kube/"
+    state: directory
+    mode: 0640
+
+- name: Copy admin.conf to Home directory
+  when: join_cluster is succeeded
+  copy:
+    src: "{{ kubeadmin_config }}"
+    dest: ".kube/config"
+    owner: "{{ ansible_user | default(ansible_user_id) }}"
+    group: "{{ ansible_user | default(ansible_user_id) }}"
+    mode: 0550
+    remote_src: true
